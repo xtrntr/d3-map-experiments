@@ -1,34 +1,188 @@
-
 <!DOCTYPE html>
 <html>
     <head>
 	      <title>Quick Start - Leaflet</title>
 
-	      <meta charset="utf-8" />
-	      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-	      <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+        <link
+            rel="stylesheet"
+            href="http://cdn.leafletjs.com/leaflet-0.7/leaflet.css"
+        />
+        <script src="http://d3js.org/d3.v4.min.js"></script>
+        <script src="http://cdn.leafletjs.com/leaflet-0.7/leaflet.js"></script>
 
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" integrity="sha512-07I2e+7D8p6he1SIM+1twR5TIrhUQn9+I6yjqD53JQjFiMf8EtC93ty0/5vJTZGF8aAocvHYNEDJajGdNx1IsQ==" crossorigin=""/>
-        <script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js" integrity="sha512-A7vV8IFfih/D732iSSKi20u/ooOfj/AGehOKq0f4vLT1Zr2Y+RX7C+w8A1gaSasGtRUZpF/NZgzSAu4/Gc41Lg==" crossorigin=""></script>
+	      <!-- <meta charset="utf-8" />
+	           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	           <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
 
+             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" integrity="sha512-07I2e+7D8p6he1SIM+1twR5TIrhUQn9+I6yjqD53JQjFiMf8EtC93ty0/5vJTZGF8aAocvHYNEDJajGdNx1IsQ==" crossorigin=""/>
+             <script src="http://d3js.org/d3.v4.min.js"></script>
+             <script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js" integrity="sha512-A7vV8IFfih/D732iSSKi20u/ooOfj/AGehOKq0f4vLT1Zr2Y+RX7C+w8A1gaSasGtRUZpF/NZgzSAu4/Gc41Lg==" crossorigin=""></script>
+           -->
+
+        <style>
+         .point {
+             fill: #000;
+             fill-opacity: 0.4;
+         }
+
+         .point--scanned {
+             fill: orange;
+             fill-opacity: 1;
+             stroke: orange;
+             stroke-width: 3px;
+         }
+
+         .point--selected {
+             fill: red;
+             fill-opacity: 1;
+             stroke: red;
+             stroke-width: 5px;
+         }
+
+         .node {
+             fill: none;
+             stroke: #ccc;
+             shape-rendering: crispEdges;
+         }
+        </style>
     </head>
     <body>
 
         <div id="mapid" style="width: 1280px; height: 720px;"></div>
         <script>
 
-	       var mymap = L.map('mapid').setView([1.34536, 103.82149], 12);
+	       var map = L.map('mapid').setView([1.34536, 103.82149], 12);
 
 	       L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
 		         maxZoom: 18,
 		         attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
 			                    '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
 			                    'Imagery © <a href="http://mapbox.com">Mapbox</a>',
-		         id: 'mapbox.streets'
-	       }).addTo(mymap);
+		         id: 'mapbox.light'
+	       }).addTo(map);
 
-         var svg = d3.select(map.getPanes().overlayPane).append("svg"),
-             g = svg.append("g").attr("class", "leaflet-zoom-hide");
+         map._initPathRoot()
+
+	       /* We simply pick up the SVG from the map object */
+	       var svg = d3.select("#mapid").select("svg"),
+	           g = svg.append("g"),
+             width = +svg.attr("width"),
+             height = +svg.attr("height"),
+             selected;
+
+         var datafile = "data/test.csv";
+	       // var datafile = "data/10466-for-mapping-visualization-kr.csv";
+	       d3.csv(datafile, function(data){
+
+             ids = d3.map(data, function(d){return d['Cluster Id'];}).keys()
+
+             data.forEach(function(d) {
+
+			           try{
+				             d.LatLng = new L.LatLng(d['Cluster Center Lat'], d['Cluster Center Lng']);
+			           } catch(err) {
+				             console.log('error', d.LatLng, err)
+			           }
+
+			           var i = ids.indexOf(d['Cluster Id'])
+		         })
+
+		         point = g.selectAll(".point")
+			                .data(data)
+			                .enter()
+                      .append("circle")
+                      .attr("class", "point")
+			                .attr("r", function(d){return 10;});
+
+             console.log(data)
+
+             var quadtree = d3.quadtree()
+                              .x(function(d) { return parseFloat(d['Cluster Center Lat']); })
+                              .y(function(d) { return parseFloat(d['Cluster Center Lng']); })
+                              .addAll(data);
+
+             console.log(quadtree)
+
+             var brush = d3.brush()
+                           .on("brush", brushed);
+
+             // building the rectangles that make up the quadtree
+             node = g.selectAll(".node")
+                     .data(nodes(quadtree))
+                     .enter().append("rect")
+                     .attr("class", "node")
+                     .attr("width", function(d) { return d.y1 - d.y0; })
+                     .attr("height", function(d) { return d.x1 - d.x0; });
+
+             console.log(node._groups)
+
+             g.append("g")
+              .attr("class", "brush")
+              .call(brush)
+              .call(brush.move, [[100, 100], [200, 200]]);
+
+             // create a d3.geoPath to convert GeoJSON to SVG
+		         transform = d3.geoTransform({point: projectPoint});
+	 	         path = d3.geoPath().projection(transform);
+
+             // transform2 = d3.geoTransform({node: projectPoint});
+	 	         // path2 = d3.geoPath().projection(transform2);
+
+		         map.on("viewreset", update);
+		         update();
+
+             function brushed() {
+                 var extent = d3.event.selection;
+                 point.each(function(d) { d.scanned = d.selected = false; });
+                 search(quadtree, extent[0][0], extent[0][1], extent[1][0], extent[1][1]);
+                 point.classed("point--scanned", function(d) { return d.scanned; });
+                 point.classed("point--selected", function(d) { return d.selected; });
+             }
+		     })
+
+		     function update() {
+			       currentZoom = map.getZoom();
+
+			       // reposition dots
+			       point.attr("transform",
+				                  function(d) {
+					                    return "translate("+
+						                         map.latLngToLayerPoint(d.LatLng).x +","+
+						                         map.latLngToLayerPoint(d.LatLng).y +")";
+				                  })
+
+         }
+
+		     // Use Leaflet to implement a D3 geometric transformation.
+		     function projectPoint(x, y) {
+			       var point = map.latLngToLayerPoint(new L.LatLng(y, x));
+			       this.stream.point(point.x, point.y);
+		     }
+
+         // Find the nodes within the specified rectangle.
+         function search(quadtree, x0, y0, x3, y3) {
+             quadtree.visit(function(node, x1, y1, x2, y2) {
+                 if (!node.length) {
+                     do {
+                         var d = node.data;
+                         d.scanned = true;
+                         d.selected = (d[0] >= x0) && (d[0] < x3) && (d[1] >= y0) && (d[1] < y3);
+                     } while (node = node.next);
+                 }
+                 return x1 >= x3 || y1 >= y3 || x2 < x0 || y2 < y0;
+             });
+         }
+
+         // Collapse the quadtree into an array of rectangles.
+         function nodes(quadtree) {
+             var nodes = [];
+             quadtree.visit(function(node, x0, y0, x1, y1) {
+                 node.x0 = x0, node.y0 = y0;
+                 node.x1 = x1, node.y1 = y1;
+                 nodes.push(node);
+             });
+             return nodes;
+         }
 
         </script>
 

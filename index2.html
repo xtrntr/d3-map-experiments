@@ -3,11 +3,14 @@
 
  .point {
      fill: #000;
-     fill-opacity: 0;
+     fill-opacity: 0.4;
  }
 
  .point--scanned {
-     fill-opacity: 0;
+     fill: orange;
+     fill-opacity: 1;
+     stroke: orange;
+     stroke-width: 3px;
  }
 
  .point--selected {
@@ -19,7 +22,7 @@
 
  .node {
      fill: none;
-     fill-opacity: 0;
+     stroke: #ccc;
      shape-rendering: crispEdges;
  }
 
@@ -34,16 +37,18 @@
      selected;
 
  var random = Math.random,
-     data = d3.range(10000).map(function() { return [random() * width, random() * height]; });
+     data = d3.range(25).map(function() { return [random() * width, random() * height]; });
 
  var quadtree = d3.quadtree()
                   .extent([[-1, -1], [width + 1, height + 1]])
                   .addAll(data);
 
+ console.log(data);
+
  var brush = d3.brush()
                .on("brush", brushed);
 
- svg.selectAll(".node")
+ nodes = svg.selectAll(".node")
     .data(nodes(quadtree))
     .enter().append("rect")
     .attr("class", "node")
